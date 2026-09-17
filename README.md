@@ -20,14 +20,16 @@ Both halves are deployed as of 17 September 2026:
 
 - Frontend: <https://betterbmtc.vercel.app>
 - Worker API: <https://betterbmtc-api.abhinavmohan12.workers.dev/api>
+- Upstream relay: `/api/bmtc` on the Vercel deployment
 
-The frontend is built with `VITE_API_URL` pointing at that Worker, and the deployed app serves real stop data from it.
+**The live BMTC feed is connected.** `/api/health` reports the upstream as available, and route responses carry real vehicle positions with the feed's own arrival estimates.
 
-BMTC's public mobile API is **not reachable from either network tested**. It returns HTTP 403 from the development network, and from Cloudflare's network it does not respond at all: requests hang until the Worker's 8-second abort in `backend/src/transit.ts`. **Production therefore runs in static mode**, and `/api/health` reports the upstream as unavailable. This is not a deployment defect; the upstream is simply refusing us.
+Two separate obstacles had to be cleared, and both are worth knowing about:
 
-One consequence is user-visible: because the Worker waits out that 8-second timeout before falling back, an uncached first request to `/api/nearby` or `/api/search` takes roughly 8.5 seconds in production. Subsequent requests hit the edge cache and are fast. Lowering the abort in `transit.ts` would trade away live-feed responsiveness if BMTC ever starts answering.
+1. **The upstream edge rejects default client User-Agents.** `curl/*` and a bare `Mozilla/5.0` receive an empty HTTP 403 from nginx on every path, including `/`, before any request handling runs. A User-Agent that identifies the client is served normally. No credential is involved: `authToken: "N/A"` is the long-standing public convention and is still not validated. Nothing here impersonates the official app or bypasses an authentication control.
+2. **Cloudflare's network cannot reach `karnataka.gov.in` at all.** Every request from a Worker times out, including requests to BMTC's own public website, while a control request to `example.com` succeeds in milliseconds. Vercel's Mumbai region (`bom1`) reaches the same host in roughly 200 ms, so the Worker relays its upstream calls through `api/bmtc.ts`. That relay accepts only the four endpoints this app uses and cannot be repurposed as a general-purpose proxy.
 
-Nearby live discovery samples a bounded set of routes serving nearby stops; it cannot promise every bus in the city.
+Live coverage is still partial, by design and by upstream limitation. `NearbyStations_v2` no longer answers whatever body it is given, so nearby stop locations come from the static dataset while vehicle positions are live. Live stop search returns rows without coordinates, so static stops stay authoritative for map placement. Arrival estimates are the feed's own ETAs converted from IST wall-clock time, never predictions of our own. Nearby live discovery samples a bounded set of routes serving nearby stops; it cannot promise every bus in the city.
 
 The source dataset contains **9,001 stop records** and **4,416 directional route patterns**. Its published commit is dated **8 September 2026**, imported **17 September 2026**. These are route patterns, not proof that services are operating today. Planning finds a direct or one-transfer path through those patterns; it does not optimize timetables or predict fares/travel time. Walking labels are approximate straight-line estimates at 70 m/min; walking directions open Google Maps.
 
@@ -82,6 +84,7 @@ BetterBMTC is independent and unaffiliated with BMTC. The visual design takes cu
 
 - `src/` — responsive React application, map, journey planner and on-device fallback adapter.
 - `backend/src/` — Cloudflare Worker, input validation, BMTC adapters and shared pure static transit engine.
+- `api/bmtc.ts` — Vercel Mumbai-region relay for upstream BMTC calls, restricted to the endpoints this app uses.
 - `backend/test/` — parser, route planning and HTTP validation tests.
 - `tests/` — browser tests for discovery, bookmarks, search, journey planning, responsive map and geolocation.
 - `scripts/deploy.mjs` — repeatable deployment to authenticated Cloudflare + Vercel accounts.

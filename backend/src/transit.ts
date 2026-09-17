@@ -1,15 +1,15 @@
 import { normalizeRouteDetails, normalizeRouteSearch, normalizeStopsSearch, normalizeStationTrips, type Route, type Stop, type Vehicle } from "./normalizers";
 
-const BASE = "https://bmtcmobileapi.karnataka.gov.in/WebAPI/";
-// The upstream edge answers an empty 403 to default client User-Agents (curl/*, bare Mozilla/5.0) before any
-// request handling runs. Identify the project honestly rather than impersonating a browser.
-const userAgent = "BetterBMTC/1.0 (+https://github.com/MustangBro7/betterbmtc)";
-const headers = { "Content-Type": "application/json", Accept: "application/json, text/plain, */*", lan: "en", deviceType: "WEB", authToken: "N/A", deviceId: "", "User-Agent": userAgent };
+// BMTC lives at https://bmtcmobileapi.karnataka.gov.in/WebAPI/ but Cloudflare's network cannot reach
+// karnataka.gov.in at all — every Worker request times out, including to BMTC's own public site. Vercel's
+// Mumbai region reaches it in ~200ms, so upstream calls are relayed through api/bmtc.ts, which also attaches
+// the honest User-Agent the upstream edge requires (it answers an empty 403 to curl/* and bare Mozilla/5.0).
+const RELAY = "https://betterbmtc.vercel.app/api/bmtc";
 export class UpstreamUnavailable extends Error {}
 async function post(endpoint: string, body: Record<string, unknown>): Promise<unknown> {
-  const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 8_000);
+  const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 12_000);
   try {
-    const response = await fetch(new URL(endpoint, BASE), { method: "POST", headers, body: JSON.stringify(body), signal: controller.signal });
+    const response = await fetch(RELAY, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint, payload: body }), signal: controller.signal });
     if (!response.ok) throw new UpstreamUnavailable(`BMTC upstream returned ${response.status}`);
     return await response.json() as unknown;
   } catch (error) { throw error instanceof UpstreamUnavailable ? error : new UpstreamUnavailable("BMTC live service is temporarily unavailable"); }
