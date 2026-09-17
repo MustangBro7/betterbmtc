@@ -2,8 +2,10 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
-  timeout: 30_000,
-  expect: { timeout: 8_000 },
+  timeout: 90_000,
+  // The Worker aborts a hanging BMTC upstream after 8s before serving static data,
+  // so assertions on first-hit API content must outlast that fallback.
+  expect: { timeout: 20_000 },
   fullyParallel: false,
   reporter: process.env.CI ? [['line'], ['html', { open: 'never' }]] : [['list']],
   use: {

@@ -81,6 +81,6 @@ test.describe('responsive and permissions', () => {
     await context.grantPermissions([], { origin: 'http://localhost:3000' });
     await page.goto('/');
     await page.getByRole('button', { name: 'Use my current location' }).first().click();
-    await expect(page.getByRole('status')).toContainText(/Location unavailable|Enable location/i);
+    await expect(page.locator('.toast[role="status"]')).toContainText(/Location unavailable|Enable location/i);
   });
 });
