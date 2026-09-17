@@ -1,0 +1,9 @@
+backend/node_modules
+backend/.wrangler
+backend/worker-configuration.d.ts
+.git
+.github
+tests
+test-results
+playwright-report
+artifacts

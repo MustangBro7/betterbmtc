@@ -1,0 +1,11 @@
+# BetterBMTC API
+
+The Worker uses the unofficial BMTC mobile API when it is available. Its static fallback is generated from [Vonter/bmtc-gtfs](https://github.com/Vonter/bmtc-gtfs), retrieved on 2026-09-17. That source is derived from the Namma BMTC app and is made available under the [Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/). The generated fallback remains openly included in `src/static-data.json` and every static API response includes this provenance.
+
+Static responses contain route patterns and stops only. They never contain inferred live positions, arrival times, fares, or journey durations.
+
+To regenerate the fallback after downloading the GTFS archive and extracting it to `/tmp/vonter-gtfs`:
+
+```sh
+npm run build:static
+```

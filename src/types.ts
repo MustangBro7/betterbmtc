@@ -1,0 +1,11 @@
+export type Point = { lat: number; lon: number };
+export type Stop = Point & { id: string; name: string; distanceM?: number };
+export type Route = { id: string; number: string; from: string; to: string; type?: string };
+export type Vehicle = Point & { id: string; routeNumber: string; routeId?: string; destination?: string; updatedAt?: string; etaMinutes?: number };
+export type Provenance = { source: string; sourceUrl: string; retrievedAt: string; feedDate?: string; license: string; note: string };
+export type FeedStatus = 'live' | 'unavailable' | 'static';
+export type Nearby = { stops: Stop[]; vehicles: Vehicle[]; status: FeedStatus; updatedAt?: string; source?: string; provenance?: Provenance; message?: string };
+export type SearchResult = { stops: Stop[]; routes: Route[]; status?: FeedStatus; provenance?: Provenance };
+export type RouteDetail = { route: Route; stops: Stop[]; vehicles: Vehicle[]; status?: FeedStatus; provenance?: Provenance };
+export type Arrivals = { vehicles: Vehicle[]; status: FeedStatus; routes?: Route[]; provenance?: Provenance; message?: string };
+export type SavedItem = { kind: 'stop'; item: Stop } | { kind: 'route'; item: Route };
