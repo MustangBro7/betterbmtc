@@ -16,9 +16,18 @@ A Bengaluru bus companion in BMTC blue. React + TypeScript + Vite frontend for V
 
 ## Current deployment and data status
 
-The production frontend and backend are **not deployed**. On 17 September 2026, both CLI deployments were blocked by missing Cloudflare/Vercel credentials. Vercel's advertised temporary deployment path also initiated a login flow and was canceled. No account was created or deployment falsely reported.
+Both halves are deployed as of 17 September 2026:
 
-BMTC's public mobile API returned **HTTP 403** from the development network. Consequently, this build currently runs against real static transit data. Production live-feed connectivity still needs verification from Cloudflare after deployment. Nearby live discovery samples a bounded set of routes serving nearby stops; it cannot promise every bus in the city.
+- Frontend: <https://betterbmtc.vercel.app>
+- Worker API: <https://betterbmtc-api.abhinavmohan12.workers.dev/api>
+
+The frontend is built with `VITE_API_URL` pointing at that Worker, and the deployed app serves real stop data from it.
+
+BMTC's public mobile API is **not reachable from either network tested**. It returns HTTP 403 from the development network, and from Cloudflare's network it does not respond at all: requests hang until the Worker's 8-second abort in `backend/src/transit.ts`. **Production therefore runs in static mode**, and `/api/health` reports the upstream as unavailable. This is not a deployment defect; the upstream is simply refusing us.
+
+One consequence is user-visible: because the Worker waits out that 8-second timeout before falling back, an uncached first request to `/api/nearby` or `/api/search` takes roughly 8.5 seconds in production. Subsequent requests hit the edge cache and are fast. Lowering the abort in `transit.ts` would trade away live-feed responsiveness if BMTC ever starts answering.
+
+Nearby live discovery samples a bounded set of routes serving nearby stops; it cannot promise every bus in the city.
 
 The source dataset contains **9,001 stop records** and **4,416 directional route patterns**. Its published commit is dated **8 September 2026**, imported **17 September 2026**. These are route patterns, not proof that services are operating today. Planning finds a direct or one-transfer path through those patterns; it does not optimize timetables or predict fares/travel time. Walking labels are approximate straight-line estimates at 70 m/min; walking directions open Google Maps.
 

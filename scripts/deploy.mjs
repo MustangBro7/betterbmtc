@@ -13,7 +13,13 @@ const workerUrl = output.match(/https:\/\/[a-z0-9.-]+\.workers\.dev\b/i)?.[0];
 if (!workerUrl) throw new Error('Cloudflare deployed but did not return a workers.dev URL. Set VITE_API_URL to your Worker URL, then run npx vercel --prod.');
 const apiUrl = `${workerUrl}/api`;
 writeFileSync(new URL('../.env.production.local', import.meta.url), `VITE_API_URL=${apiUrl}\n`);
-const check = await fetch(`${apiUrl}/health`, { signal: AbortSignal.timeout(30000) });
-if (!check.ok) throw new Error(`Worker health check failed: ${check.status}`);
+// A freshly deployed workers.dev route 404s until it propagates, so poll rather than fail on the first miss.
+let check = null;
+for (let attempt = 1; attempt <= 10; attempt += 1) {
+  check = await fetch(`${apiUrl}/health`, { signal: AbortSignal.timeout(30000) }).catch(() => null);
+  if (check?.ok) break;
+  if (attempt === 10) throw new Error(`Worker health check failed after ${attempt} attempts: ${check ? check.status : "no response"}`);
+  await new Promise((resolve) => setTimeout(resolve, 6000));
+}
 console.log(`Cloudflare API ready at ${apiUrl}`);
 run('npx', ['vercel', 'deploy', '--yes', '--prod', '--build-env', `VITE_API_URL=${apiUrl}`]);
