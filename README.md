@@ -66,6 +66,8 @@ npm run deploy
 
 `npm run deploy` checks the application, deploys the Worker, reads its returned URL, checks health, and builds/deploys the Vercel frontend with `VITE_API_URL=https://<your-worker>.workers.dev/api`. No secrets are embedded in the frontend. The generated `.env.production.local` is gitignored. The user must complete provider authentication; automation cannot do that on their behalf.
 
+Set `VITE_API_URL` on the Vercel project itself (`npx vercel env add VITE_API_URL production`) rather than relying on a per-deploy `--build-env` flag. A build without it produces a frontend that silently runs in on-device static mode while still deploying successfully, so `npm run deploy` now fetches the shipped bundle and fails if it does not reference the Worker.
+
 Alternatively import this repository into Vercel (framework: Vite; build: `npm run build`; output: `dist`) and set `VITE_API_URL` to the deployed Worker `/api` URL. With no API URL configured, a production build intentionally uses on-device static mode; it must not be described as a live tracker.
 
 Deploy the backend independently with `npm --prefix backend run deploy`. Cloudflare API tokens may be provided through the standard `CLOUDFLARE_API_TOKEN` environment variable. Do not commit credentials. The Worker requires no paid storage bindings. CORS is public because this is a public, read-only transit API.

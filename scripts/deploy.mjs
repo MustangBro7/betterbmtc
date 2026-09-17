@@ -22,4 +22,14 @@ for (let attempt = 1; attempt <= 10; attempt += 1) {
   await new Promise((resolve) => setTimeout(resolve, 6000));
 }
 console.log(`Cloudflare API ready at ${apiUrl}`);
-run('npx', ['vercel', 'deploy', '--yes', '--prod', '--build-env', `VITE_API_URL=${apiUrl}`]);
+const vercel = run('npx', ['vercel', 'deploy', '--yes', '--prod', '--build-env', `VITE_API_URL=${apiUrl}`]);
+
+// A frontend built without VITE_API_URL silently serves on-device static mode and still deploys "successfully",
+// so confirm the shipped bundle actually references the Worker rather than trusting the build env.
+const siteUrl = vercel.match(/https:\/\/[a-z0-9-]+\.vercel\.app/gi)?.pop();
+if (!siteUrl) throw new Error('Vercel deployed but did not report a URL to verify.');
+const html = await (await fetch(siteUrl, { signal: AbortSignal.timeout(30000) })).text();
+const asset = html.match(/\/assets\/index-[A-Za-z0-9_-]+\.js/)?.[0];
+const bundle = asset ? await (await fetch(`${siteUrl}${asset}`, { signal: AbortSignal.timeout(30000) })).text() : '';
+if (!bundle.includes(apiUrl)) throw new Error(`${siteUrl} does not reference ${apiUrl}, so it would quietly run in on-device static mode. Set the variable on the project: npx vercel env add VITE_API_URL production`);
+console.log(`Frontend at ${siteUrl} is wired to ${apiUrl}`);
