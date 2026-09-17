@@ -18,22 +18,29 @@ const coordinate = (value: unknown, aliases: string[], min: number, max: number)
   for (const key of aliases) { const n = numeric(item[key]); if (n !== null && n >= min && n <= max) return n; }
   return null;
 };
-export const etaMinutes = (value: unknown): number | undefined => {
+// BMTC reports arrival times as IST wall-clock strings ("2026-09-17 20:15:00" or "17-09-2026 20:15:00").
+// Workers run in UTC, so the offset has to be applied explicitly rather than letting Date parse it locally.
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+const absoluteEtaMs = (value: string): number | null => {
+  const ymd = value.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);
+  const dmy = value.match(/^(\d{2})-(\d{2})-(\d{4})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);
+  const parts = ymd ? [ymd[1], ymd[2], ymd[3], ymd[4], ymd[5], ymd[6]] : dmy ? [dmy[3], dmy[2], dmy[1], dmy[4], dmy[5], dmy[6]] : null;
+  if (!parts) return null;
+  const [year, month, day, hour, minute, second] = parts.map((part) => Number(part ?? "0"));
+  const ms = Date.UTC(year, month - 1, day, hour, minute, second) - IST_OFFSET_MS;
+  return Number.isFinite(ms) ? ms : null;
+};
+/** Absolute feed timestamps become minutes from now; anything already passed or absurdly far ahead is dropped. */
+export const etaMinutes = (value: unknown, now = Date.now()): number | undefined => {
   if (typeof value === "number") return Number.isFinite(value) && value >= 0 ? value : undefined;
-  const match = text(value).match(/(?:^|[^0-9-])(\d+(?:\.\d+)?)\s*(?:min|mins|minute|minutes)\b/i);
+  const raw = text(value);
+  const absolute = absoluteEtaMs(raw);
+  if (absolute !== null) { const minutes = Math.round((absolute - now) / 60_000); return minutes >= 0 && minutes <= 180 ? minutes : undefined; }
+  const match = raw.match(/(?:^|[^0-9-])(\d+(?:\.\d+)?)\s*(?:min|mins|minute|minutes)\b/i);
   const result = match ? Number(match[1]) : Number.NaN;
   return Number.isFinite(result) && result >= 0 ? result : undefined;
 };
 
-export function normalizeNearby(raw: unknown): Stop[] {
-  return data(raw).flatMap((item) => {
-    const lat = coordinate(item, ["center_lat", "latitude"], 8, 18); const lon = coordinate(item, ["center_lon", "longitude"], 70, 85);
-    const id = text(item.geofenceid ?? item.stationid ?? item.routeid); const name = text(item.geofencename ?? item.stationname ?? item.routename);
-    if (!id || !name || lat === null || lon === null) return [];
-    const km = numeric(item.distance);
-    return [{ id, name, lat, lon, ...(km !== null ? { distanceM: Math.round(km * 1000) } : {}) }];
-  });
-}
 export function normalizeStopsSearch(raw: unknown): Stop[] {
   return data(raw).flatMap((item) => {
     const lat = coordinate(item, ["center_lat", "latitude"], 8, 18); const lon = coordinate(item, ["center_lon", "longitude"], 70, 85);
@@ -52,6 +59,10 @@ export function normalizeRouteDetails(raw: unknown, route: Route): { stops: Stop
   for (const direction of ["up", "down"]) {
     const group = record(root[direction]);
     for (const item of data(group)) {
+      // Callers only know the numeric route id; the stop records carry the public route number and terminals.
+      if (!route.number || route.number === route.id) route.number = text(item.routeno) || route.number;
+      if (!route.from) route.from = text(item.from);
+      if (!route.to) route.to = text(item.to);
       const lat = coordinate(item, ["centerlat", "center_lat", "latitude"], 8, 18); const lon = coordinate(item, ["centerlong", "center_lon", "longitude"], 70, 85);
       const id = text(item.stationid); const name = text(item.stationname);
       if (id && name && lat !== null && lon !== null) stopsByDirection[direction as "up" | "down"].push({ id, name, lat, lon });
